@@ -1,10 +1,30 @@
+
+/*******************************************************************************
+*   Ledger Nano S - Secure firmware
+*   (c) 2021 Ledger
+*
+*  Licensed under the Apache License, Version 2.0 (the "License");
+*  you may not use this file except in compliance with the License.
+*  You may obtain a copy of the License at
+*
+*      http://www.apache.org/licenses/LICENSE-2.0
+*
+*  Unless required by applicable law or agreed to in writing, software
+*  distributed under the License is distributed on an "AS IS" BASIS,
+*  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+*  See the License for the specific language governing permissions and
+*  limitations under the License.
+********************************************************************************/
+
 #pragma once
 
 #include "bolos_target.h"
 
 #include "bagl.h"
 
-#ifdef TARGET_NANOX
+#ifdef HAVE_UX_FLOW
+
+#if (BAGL_WIDTH==128 && BAGL_HEIGHT==64)
 /*********************************************************************************
  * 1 bold text line
  * 3 text lines
@@ -56,25 +76,58 @@ typedef struct ux_layout_bnn_params_s {
 } ux_layout_bnn_params_t;
 
 void ux_layout_bnn_init(unsigned int stack_slot);
+#endif //(BAGL_WIDTH==128 && BAGL_HEIGHT==64)
+
 
 /*********************************************************************************
  * 1 bold text line with the title
- * 3 text lines
+ * 1-3 text lines [nano s/nano x]
  */
-#define UX_LAYOUT_PAGING_LINE 3
+#if (BAGL_WIDTH==128 && BAGL_HEIGHT==64)
+#define UX_LAYOUT_PAGING_LINE_COUNT 3
+#elif (BAGL_WIDTH==128 && BAGL_HEIGHT==32)
+#define UX_LAYOUT_PAGING_LINE_COUNT 1
+#else
+#error "BAGL_WIDTH/BAGL_HEIGHT not defined"
+#endif
 
-typedef struct ux_layout_bnnn_paging_params_s {
+#include "ux_layout_paging_compute.h"
+
+typedef struct ux_layout_paging_params_s {
 	const char* title;
 	const char* text;
-} ux_layout_bnnn_paging_params_t;
+} ux_layout_paging_params_t;
 
-void ux_layout_bnnn_paging_init(unsigned int stack_slot);
+void ux_layout_paging_init(unsigned int stack_slot);
+
+// variant with string getters instead of hardwired content
+typedef struct ux_layout_paging_func_params_s {
+	const char* (*get_title)(void);
+	const char* (*get_text)(void);
+} ux_layout_paging_func_params_t;
+void ux_layout_paging_func_init(unsigned int stack_slot);
+
+// For paging layouts, the first n/b deals with the first line (the title),
+// and the second n/b deals with the rest of the lines.
+void ux_layout_nn_paging_init(unsigned int stack_slot);
+void ux_layout_nb_paging_init(unsigned int stack_slot);
+void ux_layout_bn_paging_init(unsigned int stack_slot);
+void ux_layout_bb_paging_init(unsigned int stack_slot);
+
+// The layout params are always the same independently of the boldness of the lines.
+#define ux_layout_nn_paging_params_t ux_layout_paging_params_t
+#define ux_layout_nb_paging_params_t ux_layout_paging_params_t
+#define ux_layout_bn_paging_params_t ux_layout_paging_params_t
+#define ux_layout_bb_paging_params_t ux_layout_paging_params_t
+
 // Call to reset the paging component to the first page
-void ux_layout_bnnn_paging_reset(void);
-void ux_layout_bnnn_paging_prevstep_hook(void);
-void ux_layout_bnnn_paging_nextstep_hook(void);
+void ux_layout_paging_reset(void);
 
-#endif // TARGET_NANOX
+// deprecation
+#define ux_layout_bnnn_paging_params_t ux_layout_paging_params_t
+#define ux_layout_bnnn_paging_init ux_layout_paging_init
+#define ux_layout_bnnn_paging_reset ux_layout_paging_reset
+#define ux_layout_bn_paging_reset ux_layout_paging_reset
 
 /*********************************************************************************
  * 2 text lines
@@ -103,6 +156,17 @@ typedef struct ux_layout_pb_params_s {
 } ux_layout_pb_params_t;
 
 void ux_layout_pb_init(unsigned int stack_slot);
+
+/*********************************************************************************
+ * 2 bold text line
+ */
+
+typedef struct ux_layout_bb_params_s {
+	const char* line1;
+	const char* line2;
+} ux_layout_bb_params_t;
+
+void ux_layout_bb_init(unsigned int stack_slot);
 
 /*********************************************************************************
  * 1 text line
@@ -141,6 +205,21 @@ typedef struct ux_layout_pnn_params_s {
 } ux_layout_pnn_params_t;
 
 void ux_layout_pnn_init(unsigned int stack_slot);
+
+
+/*********************************************************************************
+ * ICON
+ * 1 bold text lines
+ * 1 normal text lines
+ */
+
+typedef struct ux_layout_pbn_params_s {
+	const bagl_icon_details_t* icon;
+	const char* line1;
+	const char* line2;
+} ux_layout_pbn_params_t;
+
+void ux_layout_pbn_init(unsigned int stack_slot);
 
 /*********************************************************************************
  * ICON
@@ -212,3 +291,5 @@ void ux_menulist_init_select(unsigned int stack_slot,
  * (must be called after layout init function).
  */
 void ux_layout_set_timeout(unsigned int stack_slot, unsigned int ms);
+
+#endif // HAVE_UX_FLOW

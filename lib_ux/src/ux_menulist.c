@@ -1,4 +1,27 @@
+
+/*******************************************************************************
+*   Ledger Nano S - Secure firmware
+*   (c) 2021 Ledger
+*
+*  Licensed under the Apache License, Version 2.0 (the "License");
+*  you may not use this file except in compliance with the License.
+*  You may obtain a copy of the License at
+*
+*      http://www.apache.org/licenses/LICENSE-2.0
+*
+*  Unless required by applicable law or agreed to in writing, software
+*  distributed under the License is distributed on an "AS IS" BASIS,
+*  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+*  See the License for the specific language governing permissions and
+*  limitations under the License.
+********************************************************************************/
+
 #include "ux.h"
+#include "os_helpers.h"
+
+#ifdef HAVE_UX_FLOW
+
+#ifndef TARGET_BLUE
 
 void ux_menulist_refresh(unsigned int stack_slot);
 
@@ -27,11 +50,10 @@ unsigned int ux_menulist_button(unsigned int button_mask, unsigned int button_ma
 
 void ux_menulist_refresh(unsigned int stack_slot) {
   // set values
-  G_ux.menulist_params.line1 = G_ux.menulist_getter(G_ux.menulist_current-2);
-  G_ux.menulist_params.line2 = G_ux.menulist_getter(G_ux.menulist_current-1);
-  G_ux.menulist_params.line3 = G_ux.menulist_getter(G_ux.menulist_current);
-  G_ux.menulist_params.line4 = G_ux.menulist_getter(G_ux.menulist_current+1);
-  G_ux.menulist_params.line5 = G_ux.menulist_getter(G_ux.menulist_current+2);
+  int i;
+  for (i = 0; i < 5; i++) {
+    G_ux.menulist_params.lines[i] = G_ux.menulist_getter(G_ux.menulist_current+i-2);
+  }
   // display
   ux_layout_nnbnn_init(stack_slot);
   // change callback to the menulist one
@@ -73,3 +95,7 @@ void ux_menulist_init(unsigned int stack_slot,
                              list_item_select_t selector) {
 	ux_menulist_init_select(stack_slot, getter, selector, 0);
 }
+
+#endif // TARGET_BLUE
+
+#endif // HAVE_UX_FLOW

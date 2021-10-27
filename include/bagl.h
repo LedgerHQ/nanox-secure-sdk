@@ -1,19 +1,20 @@
+
 /*******************************************************************************
- *   Ledger Blue - Non secure firmware
- *   (c) 2016, 2017 Ledger
- *
- *  Licensed under the Apache License, Version 2.0 (the "License");
- *  you may not use this file except in compliance with the License.
- *  You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- *   Unless required by applicable law or agreed to in writing, software
- *   distributed under the License is distributed on an "AS IS" BASIS,
- *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- *   See the License for the specific language governing permissions and
- *   limitations under the License.
- ********************************************************************************/
+*   Ledger Nano S - Secure firmware
+*   (c) 2021 Ledger
+*
+*  Licensed under the Apache License, Version 2.0 (the "License");
+*  you may not use this file except in compliance with the License.
+*  You may obtain a copy of the License at
+*
+*      http://www.apache.org/licenses/LICENSE-2.0
+*
+*  Unless required by applicable law or agreed to in writing, software
+*  distributed under the License is distributed on an "AS IS" BASIS,
+*  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+*  See the License for the specific language governing permissions and
+*  limitations under the License.
+********************************************************************************/
 
 #ifndef BAGL_H_
 #define BAGL_H_
@@ -185,6 +186,7 @@ typedef enum {
 #define BAGL_FONT_SYMBOLS_0_MINIRIGHT "\x84"
 #define BAGL_FONT_SYMBOLS_0_DASHBOARD "\x85"
 #define BAGL_FONT_SYMBOLS_0_SETTINGS "\x86"
+#define BAGL_FONT_SYMBOLS_0_EXIT "\x87"
 #define BAGL_FONT_SYMBOLS_1_CARET "\xA0"
 
 // --------------------------------------------------------------------------------------

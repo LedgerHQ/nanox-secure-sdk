@@ -1,14 +1,38 @@
-/* @BANNER@ */
+
+/*******************************************************************************
+*   Ledger Nano S - Secure firmware
+*   (c) 2021 Ledger
+*
+*  Licensed under the Apache License, Version 2.0 (the "License");
+*  you may not use this file except in compliance with the License.
+*  You may obtain a copy of the License at
+*
+*      http://www.apache.org/licenses/LICENSE-2.0
+*
+*  Unless required by applicable law or agreed to in writing, software
+*  distributed under the License is distributed on an "AS IS" BASIS,
+*  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+*  See the License for the specific language governing permissions and
+*  limitations under the License.
+********************************************************************************/
 
 #ifndef OS_IO_SEPROXYHAL_H
 #define OS_IO_SEPROXYHAL_H
 
-#include "os.h"
+#if defined(HAVE_BOLOS)
+#include "bolos_privileged_ux.h"
+#endif // HAVE_BOLOS
+
+#include "bolos_target.h"
+#include "decorators.h"
+#include "os_io.h"
+#include "os_print.h"
+#include "os_types.h"
+#include "os_ux.h"
 
 #ifdef OS_IO_SEPROXYHAL
 
 #include "seproxyhal_protocol.h"
-#include "ux.h"
 
 // helper macro to swap values, without intermediate value
 #define SWAP(a, b)                                                             \
@@ -66,11 +90,13 @@ unsigned char io_event(unsigned char channel);
 
 #ifdef HAVE_BLE
 void BLE_power(unsigned char powered, const char *discovered_name);
-
-void io_hal_ble_wipe_pairing_db(void);
 #endif // HAVE_BLE
 
+#ifdef __cplusplus
+extern "C" void USB_power(unsigned char enabled);
+#else
 void USB_power(unsigned char enabled);
+#endif
 
 void io_seproxyhal_handle_usb_event(void);
 void io_seproxyhal_handle_usb_ep_xfer_event(void);
@@ -118,18 +144,6 @@ typedef enum {
   APDU_RAW,
   APDU_USB_WEBUSB,
 } io_apdu_state_e;
-
-#ifdef HAVE_BLE_APDU
-void BLE_protocol_recv(unsigned char data_length, unsigned char *att_data);
-
-#define BLE_protocol_send_RET_OK 0
-#define BLE_protocol_send_RET_BUSY 1
-#define BLE_protocol_send_RET_ABORTED 2
-// TODO ensure not being stuck in case disconnect or timeout during reply.
-// add a timeout for reply operation
-char BLE_protocol_send(unsigned char *response_apdu,
-                       unsigned short response_apdu_length);
-#endif // HAVE_BLE_APDU
 
 #ifdef HAVE_IO_U2F
 #include "u2f_service.h"
@@ -186,14 +200,6 @@ extern u2f_service_t G_io_u2f;
  *     050002359000
  */
 
-// avoid typing the size each time
-#define SPRINTF(strbuf, ...) snprintf(strbuf, sizeof(strbuf), __VA_ARGS__)
-
-#define ARRAYLEN(array) (sizeof(array) / sizeof(array[0]))
-#define INARRAY(elementptr, array)                                             \
-  ((unsigned int)elementptr >= (unsigned int)array &&                          \
-   (unsigned int)elementptr < ((unsigned int)array) + sizeof(array))
-
 /**
  * Wait until a UX call returns a definitve status. Handle all event packets in
  * between
@@ -211,6 +217,7 @@ typedef struct io_seph_s {
   io_apdu_media_t apdu_media;
 
   unsigned int ms;
+
 #ifdef HAVE_IO_USB
   unsigned char usb_ep_xfer_len[IO_USB_MAX_ENDPOINTS];
   struct {
@@ -222,25 +229,14 @@ typedef struct io_seph_s {
   unsigned short ble_xfer_timeout;
 #endif // HAVE_BLE_APDU
 
-#ifdef TARGET_NANOX
-  unsigned int display_status_sent;
+#ifdef HAVE_BLE
   // cached here to avoid unavailable zone deref within IO task
   unsigned int plane_mode;
-#endif // TARGET_NANOX
-
-#ifdef HAVE_UX_LEGACY
-  // current ux_menu context (could be pluralised if multiple nested levels of
-  // menu are required within bolos_ux for example)
-  ux_menu_state_t menu;
-  ux_turner_state_t turner;
-#ifdef BOLOS_RELEASE
-#ifdef TARGET_NANOX
-#error HAVE_UX_LEGACY must be removed in the release
-#else
-#warning Refactor UX plz
-#endif // TARGET_NANOX
-#endif // BOLOS_RELEASE
-#endif // HAVE_UX_LEGACY
+  unsigned char ble_ready;
+  unsigned char name_changed;
+  unsigned char enabling_advertising;
+  unsigned char disabling_advertising;
+#endif // HAVE_BLE
 
 } io_seph_app_t;
 
@@ -266,12 +262,25 @@ void io_seproxyhal_setup_ticker(unsigned int interval_ms);
 void io_seproxyhal_power_off(void);
 void io_seproxyhal_se_reset(void);
 void io_seproxyhal_disable_io(void);
-void io_seproxyhal_disable_ble(void);
+
+#ifdef HAVE_BLE
+void io_seph_ble_enable(unsigned char enable);
+void io_seph_ble_clear_bond_db(void);
+#endif // HAVE_BLE
+
 /**
  * Function to ensure a I/O channel is not timeouting waiting for operations
  * after a long time without SEPH packet exchanges
  */
 void io_seproxyhal_io_heartbeat(void);
+
+// IO task related function
+unsigned int os_io_seph_recv_and_process(unsigned int dont_process_ux_events);
+
+#ifdef HAVE_PRINTF
+// Sends a character to the MCU and waits for the MCU acknowledgement.
+void mcu_usb_prints(const char *str, unsigned int charcount);
+#endif // HAVE_PRINTF
 
 #endif // OS_IO_SEPROXYHAL
 
