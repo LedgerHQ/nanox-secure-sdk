@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 
 """
-*******************************************************************************
-*   Ledger - Non secure firmware
-*   (c) 2016, 2017 Ledger
+
+/*******************************************************************************
+*   Ledger Nano S - Secure firmware
+*   (c) 2021 Ledger
 *
 *  Licensed under the Apache License, Version 2.0 (the "License");
 *  you may not use this file except in compliance with the License.
@@ -11,12 +12,12 @@
 *
 *      http://www.apache.org/licenses/LICENSE-2.0
 *
-*   Unless required by applicable law or agreed to in writing, software
-*   distributed under the License is distributed on an "AS IS" BASIS,
-*   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-*   See the License for the specific language governing permissions and
-*   limitations under the License.
-********************************************************************************
+*  Unless required by applicable law or agreed to in writing, software
+*  distributed under the License is distributed on an "AS IS" BASIS,
+*  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+*  See the License for the specific language governing permissions and
+*  limitations under the License.
+********************************************************************************/
 """
 
 import argparse
@@ -62,13 +63,13 @@ def image_to_packed_buffer(im, palette, bits_per_pixel):
             current_bit += bits_per_pixel
 
             if current_bit >= 8:
-                image_data.append(current_byte&0xFF)
+                image_data.append(current_byte & 0xFF)
                 current_bit = 0
                 current_byte = 0
 
         # Handle last byte if any
     if current_bit > 0:
-        image_data.append(current_byte&0xFF)
+        image_data.append(current_byte & 0xFF)
     return bytes(image_data)
 
 
@@ -81,6 +82,7 @@ def main():
     parser.add_argument('--glyphcheader', action='store_true')
     parser.add_argument('--glyphcfile', action='store_true')
     parser.add_argument('--errors', action='store_true')
+    parser.add_argument('--factorize', action='store_true')
     args = parser.parse_args()
 
     exitcode = 0
@@ -88,17 +90,18 @@ def main():
         if not os.path.exists(file):
             sys.stderr.write("Error: {} does not exist!".format(file) + "\n")
             if args.errors:
-                exitcode=-1
+                exitcode = -1
             continue
 
+    colors_array = {}
     processed_image_names = []
     for file in args.image_file:
         try:
             im = Image.open(file)
-            if im.mode is not 'P':
+            if im.mode != 'P':
                 sys.stderr.write("Error: input file {} must have indexed colors".format(file) + "\n")
                 if args.errors:
-                    exitcode=-1
+                    exitcode = -1
                 continue
 
             im.load()
@@ -110,14 +113,14 @@ def main():
             image_name = os.path.splitext(os.path.basename(file))[0]
             # if image name has already been done, then don't do it twice
             if image_name in processed_image_names:
-                continue;
+                continue
             processed_image_names.append(image_name)
 
             num_colors = len(im.getcolors())
             if num_colors > MAX_COLORS:
                 sys.stderr.write("Error: input file {} has too many colors".format(file) + "\n")
                 if args.errors:
-                    exitcode=-1
+                    exitcode = -1
                 continue
 
             # Round number of colors to a power of 2
@@ -143,19 +146,21 @@ def main():
             i = 0
             new_indices = {}
             new_palette = []
+            color_array_serialized = ""
             for lum, values in opalette.items():
                 # Old index to new index
                 for v in values:
                     new_indices[v[0]] = i
                     new_palette.append(v[1])
+                    color_array_serialized += hex(v[1])
                     i += 1
 
             if args.hexbitmaponly:
                 # write BPP
-                header = struct.pack(">B",bits_per_pixel)
+                header = struct.pack(">B", bits_per_pixel)
                 # LE color array, it is meant to be embedded as is in an array
                 for i in range(num_colors):
-                    header += struct.pack(">I",new_palette[i])
+                    header += struct.pack("<I", new_palette[i])
 
                 image_data = image_to_packed_buffer(im, new_indices, bits_per_pixel)
                 print(binascii.hexlify(header + image_data).decode('utf-8'))
@@ -176,6 +181,10 @@ def main():
                     print("extern unsigned int const C_{0}_colors[];".format(image_name))
                 else:
                     print("unsigned int const C_{0}_colors[] = {{".format(image_name))
+                    # add the color palette as reference for factorized mode
+                    if color_array_serialized not in colors_array:
+                        colors_array[color_array_serialized] = image_name
+
                     # Color index encoding
                     for i in range(num_colors):
                         # Endian less value
@@ -184,7 +193,8 @@ def main():
 
                 # Print image data
                 if args.glyphcheader:
-                    print("extern unsigned char const C_{0}_bitmap[];".format(image_name))
+                    image_data = image_to_packed_buffer(im, new_indices, bits_per_pixel)
+                    print("extern unsigned char const C_{0}_bitmap[{1:d}];".format(image_name, len(image_data)))
                 else:
                     print("unsigned char const C_{0}_bitmap[] = {{".format(image_name))
 
@@ -196,16 +206,20 @@ def main():
                         print("};")
 
             if args.glyphcheader:
-                print("""#ifdef OS_IO_SEPROXYHAL
-        #include \"os_io_seproxyhal.h\"
+                print("""#ifdef HAVE_BAGL
+        #include \"bagl.h\"
         extern const bagl_icon_details_t C_{0};
         #endif // GLYPH_{0}_BPP
-        #endif // OS_IO_SEPROXYHAL""".format(image_name))
+        #endif // HAVE_BAGL""".format(image_name))
             elif args.glyphcfile:
-                print("""#ifdef OS_IO_SEPROXYHAL
-        #include \"os_io_seproxyhal.h\"
-        const bagl_icon_details_t C_{0} = {{ GLYPH_{0}_WIDTH, GLYPH_{0}_HEIGHT, {1}, C_{0}_colors, C_{0}_bitmap }};
-        #endif // OS_IO_SEPROXYHAL""".format(image_name, int(math.log(num_colors, 2))))
+                color_ref = image_name
+                if args.factorize:
+                    if color_array_serialized in colors_array:
+                        color_ref = colors_array[color_array_serialized]
+                print("""#ifdef HAVE_BAGL
+        #include \"bagl.h\"
+        const bagl_icon_details_t C_{0} = {{ GLYPH_{0}_WIDTH, GLYPH_{0}_HEIGHT, {1}, C_{2}_colors, C_{0}_bitmap }};
+        #endif // HAVE_BAGL""".format(image_name, int(math.log(num_colors, 2)), color_ref))
             else:
                 # Origin 0,0 is left top for blue, instead of left bottom for all image encodings
                 print("{{ {0:d}, {1:d}, {2:d}, C_{3}_colors, C_{3}_bitmap }},".format(
@@ -217,9 +231,10 @@ def main():
             except:
                 pass
             if args.errors:
-                exitcode=-1
-    if (exitcode != 0):
+                exitcode = -1
+    if exitcode != 0:
         sys.exit(exitcode)
+
 
 if __name__ == "__main__":
     main()

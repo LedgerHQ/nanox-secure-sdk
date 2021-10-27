@@ -33,11 +33,10 @@ PAGE_SIZE  = 256;
 STACK_SIZE = 1500;
 END_STACK  = ORIGIN(SRAM) + LENGTH(SRAM);
 
-ENTRY(main)
+ENTRY(main);
 
 SECTIONS
 {
-
   /****************************************************************/
   /* This section locates the code in FLASH                       */
   /****************************************************************/
@@ -47,13 +46,10 @@ SECTIONS
   {
     /* provide start code symbol, shall be zero */
     _text = .;
-    _nvram = .;
-    PROVIDE(_nvram = . + ORIGIN(FLASH));
+    _nvram_start = .;
 
-    PROVIDE(_setjmp = setjmp); /*thanks clang*/
-
-     /* ensure main is always @ 0xC0D00000 */
-     *(.boot*)
+    /* ensure main is always @ 0xC0D00000 */
+    *(.boot*)
     
     /* place the other code and rodata defined BUT nvram variables that are displaced in a r/w area */
     *(.text*)
@@ -72,16 +68,13 @@ SECTIONS
     
     /* NVM data (ex-filesystem) */
     *(.bss.N_* .rodata.N_*)
-    
+
     . = ALIGN(PAGE_SIZE);
     _envram_data = .;
-    /* _nvram_data_size = _envram_data - _nvram_data; */
+  
     _install_parameters = .;
-    PROVIDE(N_install_parameters = .);
-    _envram = .;
-    PROVIDE(_envram = . + ORIGIN(FLASH));
-    
-  } > FLASH
+    _nvram_end = .;
+  } > FLASH = 0x00
 
   .data (NOLOAD):
   {
@@ -123,20 +116,20 @@ SECTIONS
     _estack = ABSOLUTE(END_STACK);
     PROVIDE( _estack = ABSOLUTE(END_STACK) );
 
-  } > SRAM
+  } > SRAM = 0x00
 
   /****************************************************************/
   /* DEBUG                                                        */
   /****************************************************************/
 
   /* remove the debugging information from the standard libraries */
-  /DISCARD/ :
+  DEBUG (NOLOAD) :
   {
     libc.a ( * )
     libm.a ( * )
     libgcc.a ( * )
     *(.ARM.exidx* .gnu.linkonce.armexidx.*)
-  }
+  } > DISCARD
 
   /* Stabs debugging sections.  */
   .stab          0 : { *(.stab) }
@@ -171,5 +164,7 @@ SECTIONS
   .debug_funcnames 0 : { *(.debug_funcnames) }
   .debug_typenames 0 : { *(.debug_typenames) }
   .debug_varnames  0 : { *(.debug_varnames) }
-  
 }
+  
+PROVIDE(_nvram = ABSOLUTE(_nvram_start));
+PROVIDE(_envram = ABSOLUTE(_nvram_end));

@@ -1,13 +1,28 @@
 
-/* @BANNER@ */
-
-#ifdef HAVE_IO_U2F
+/*******************************************************************************
+*   Ledger Nano S - Secure firmware
+*   (c) 2021 Ledger
+*
+*  Licensed under the Apache License, Version 2.0 (the "License");
+*  you may not use this file except in compliance with the License.
+*  You may obtain a copy of the License at
+*
+*      http://www.apache.org/licenses/LICENSE-2.0
+*
+*  Unless required by applicable law or agreed to in writing, software
+*  distributed under the License is distributed on an "AS IS" BASIS,
+*  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+*  See the License for the specific language governing permissions and
+*  limitations under the License.
+********************************************************************************/
 
 #include <stdint.h>
 #include <string.h>
+
+#ifdef HAVE_IO_U2F
+
 #include "os.h"
 #include "os_io_seproxyhal.h"
-#include "cx.h"
 #include "u2f_service.h"
 #include "u2f_transport.h"
 #include "u2f_processing.h"
@@ -16,7 +31,12 @@
 #define INIT_DEVICE_VERSION_MAJOR 0
 #define INIT_DEVICE_VERSION_MINOR 1
 #define INIT_BUILD_VERSION 0
+
+#ifdef HAVE_FIDO2
+#define INIT_CAPABILITIES 0x04
+#else
 #define INIT_CAPABILITIES 0x00
+#endif
 
 #define FIDO_CLA 0x00
 #define FIDO_INS_ENROLL 0x01
@@ -62,7 +82,6 @@ void u2f_apdu_enroll(u2f_service_t *service, uint8_t p1, uint8_t p2,
 
 void u2f_apdu_sign(u2f_service_t *service, uint8_t p1, uint8_t p2,
                      uint8_t *buffer, uint16_t length) {
-    UNUSED(p1);
     UNUSED(p2);
     uint8_t keyHandleLength;
     uint8_t i;
@@ -91,19 +110,24 @@ void u2f_apdu_sign(u2f_service_t *service, uint8_t p1, uint8_t p2,
     }
 
     // Unwrap magic
-    keyHandleLength = buffer[U2F_HANDLE_SIGN_HEADER_SIZE-1];
-    
+    keyHandleLength = buffer[U2F_HANDLE_SIGN_HEADER_SIZE - 1];
+    if (U2F_HANDLE_SIGN_HEADER_SIZE + keyHandleLength != length) {
+        u2f_message_reply(service, U2F_CMD_MSG,
+        (uint8_t *)SW_WRONG_LENGTH, sizeof(SW_WRONG_LENGTH));
+        return;
+    }
+
     // reply to the "get magic" question of the host
     if (keyHandleLength == 5) {
         // GET U2F PROXY PARAMETERS
         // this apdu is not subject to proxy magic masking
         // APDU is F1 D0 00 00 00 to get the magic proxy
         // RAPDU: <>
-        if (os_memcmp(buffer+U2F_HANDLE_SIGN_HEADER_SIZE, "\xF1\xD0\x00\x00\x00", 5) == 0 ) {
+        if (memcmp(buffer+U2F_HANDLE_SIGN_HEADER_SIZE, "\xF1\xD0\x00\x00\x00", 5) == 0 ) {
             // U2F_PROXY_MAGIC is given as a 0 terminated string
             G_io_apdu_buffer[0] = sizeof(U2F_PROXY_MAGIC)-1;
-            os_memmove(G_io_apdu_buffer+1, U2F_PROXY_MAGIC, sizeof(U2F_PROXY_MAGIC)-1);
-            os_memmove(G_io_apdu_buffer+1+sizeof(U2F_PROXY_MAGIC)-1, "\x90\x00\x90\x00", 4);
+            memcpy(G_io_apdu_buffer+1, U2F_PROXY_MAGIC, sizeof(U2F_PROXY_MAGIC)-1);
+            memcpy(G_io_apdu_buffer+1+sizeof(U2F_PROXY_MAGIC)-1, "\x90\x00\x90\x00", 4);
             u2f_message_reply(service, U2F_CMD_MSG,
                               (uint8_t *)G_io_apdu_buffer,
                               G_io_apdu_buffer[0]+1+2+2);
@@ -125,7 +149,7 @@ void u2f_apdu_sign(u2f_service_t *service, uint8_t p1, uint8_t p2,
     }
 
     // make the apdu available to higher layers
-    os_memmove(G_io_apdu_buffer, buffer + U2F_HANDLE_SIGN_HEADER_SIZE, keyHandleLength);
+    memmove(G_io_apdu_buffer, buffer + U2F_HANDLE_SIGN_HEADER_SIZE, keyHandleLength);
     G_io_app.apdu_length = keyHandleLength;
     G_io_app.apdu_media = IO_APDU_MEDIA_U2F; // the effective transport is managed by the U2F layer
     G_io_app.apdu_state = APDU_U2F;
@@ -170,13 +194,14 @@ void u2f_handle_cmd_init(u2f_service_t *service, uint8_t *buffer,
     uint8_t channel[4];
     (void)length;
     if (u2f_is_channel_broadcast(channelInit)) {
-        // cx_rng(channel, 4); // not available within the IO task
-        U4BE_ENCODE(channel, 0, ++service->next_channel);
+        // cx_rng_no_throw(channel, 4); // not available within the IO task, just do without
+	service->next_channel += 1;
+        U4BE_ENCODE(channel, 0, service->next_channel);
     } else {
-        os_memmove(channel, channelInit, 4);
+        memcpy(channel, channelInit, 4);
     }
-    os_memmove(G_io_apdu_buffer, buffer, 8);
-    os_memmove(G_io_apdu_buffer + 8, channel, 4);
+    memmove(G_io_apdu_buffer, buffer, 8);
+    memcpy(G_io_apdu_buffer + 8, channel, 4);
     G_io_apdu_buffer[12] = INIT_U2F_VERSION;
     G_io_apdu_buffer[13] = INIT_DEVICE_VERSION_MAJOR;
     G_io_apdu_buffer[14] = INIT_DEVICE_VERSION_MINOR;
@@ -184,9 +209,9 @@ void u2f_handle_cmd_init(u2f_service_t *service, uint8_t *buffer,
     G_io_apdu_buffer[16] = INIT_CAPABILITIES;
 
     if (u2f_is_channel_broadcast(channelInit)) {
-        os_memset(service->channel, 0xff, 4);
+        memset(service->channel, 0xff, 4);
     } else {
-        os_memmove(service->channel, channel, 4);
+        memcpy(service->channel, channel, 4);
     }
     u2f_message_reply(service, U2F_CMD_INIT, G_io_apdu_buffer, 17);
 }
@@ -228,7 +253,7 @@ void u2f_handle_cmd_msg(u2f_service_t *service, uint8_t *buffer,
 #ifndef U2F_PROXY_MAGIC
 
     // No proxy mode, just pass the APDU as it is to the upper layer
-    os_memmove(G_io_apdu_buffer, buffer, length);
+    memmove(G_io_apdu_buffer, buffer, length);
     G_io_app.apdu_length = length;
     G_io_app.apdu_media = IO_APDU_MEDIA_U2F; // the effective transport is managed by the U2F layer
     G_io_app.apdu_state = APDU_U2F;
@@ -284,6 +309,14 @@ void u2f_message_complete(u2f_service_t *service) {
     case U2F_CMD_MSG:
         u2f_handle_cmd_msg(service, service->transportBuffer + 3, length);
         break;
+#ifdef HAVE_FIDO2
+    case CTAP2_CMD_CBOR:
+        ctap2_handle_cmd_cbor(service, service->transportBuffer + 3, length);
+        break;
+    case CTAP2_CMD_CANCEL:
+        ctap2_handle_cmd_cancel(service, service->transportBuffer + 3, length);
+        break;
+#endif        	
     }
 }
 

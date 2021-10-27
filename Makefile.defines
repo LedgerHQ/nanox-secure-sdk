@@ -23,18 +23,24 @@ $(info TARGET_NAME=$(TARGET_NAME) TARGET_ID=$(TARGET_ID) TARGET_VERSION=$(TARGET
 
 # extra load parameters for loadApp script
 ifneq ($(SCP_PRIVKEY),)
-PARAM_SCP=--rootPrivateKey $(SCP_PRIVKEY)
+PARAM_SCP+=--rootPrivateKey $(SCP_PRIVKEY)
 endif
-COMMON_LOAD_PARAMS=--tlv --targetId $(TARGET_ID) --targetVersion="$(TARGET_VERSION)" --delete --fileName bin/app.hex --appName $(APPNAME) --appVersion $(APPVERSION) --dataSize $$((0x`cat debug/app.map | grep _envram_data | cut -f1 -d' '` - 0x`cat debug/app.map | grep _nvram_data | cut -f1 -d' '`)) `ICONHEX=\`python3 $(BOLOS_SDK)/icon3.py --hexbitmaponly $(ICONNAME)  2>/dev/null\` ; [ ! -z "$$ICONHEX" ] && echo "--icon $$ICONHEX"` $(PARAM_SCP)
+COMMON_LOAD_PARAMS=--tlv --targetId $(TARGET_ID) --targetVersion="$(TARGET_VERSION)" --delete --fileName bin/app.hex --appName $(APPNAME) --appVersion $(APPVERSION) --dataSize $$((0x`cat debug/app.map |grep _envram_data | tr -s ' ' | cut -f2 -d' '|cut -f2 -d'x'` - 0x`cat debug/app.map |grep _nvram_data | tr -s ' ' | cut -f2 -d' '|cut -f2 -d'x'`)) `ICONHEX=\`python3 $(BOLOS_SDK)/icon3.py --hexbitmaponly $(ICONNAME)  2>/dev/null\` ; [ ! -z "$$ICONHEX" ] && echo "--icon $$ICONHEX"` $(PARAM_SCP)
 COMMON_DELETE_PARAMS=--targetId $(TARGET_ID) --appName $(APPNAME) $(PARAM_SCP)
 
 ### platform definitions
 DEFINES += gcc __IO=volatile
 
-# default is not to display make commands
-log = $(if $(strip $(VERBOSE)),$1,@$1)
+# no assert by default
+DEFINES += NDEBUG
 
-CC      = clang
+# default is not to display make commands
+log = $(if $(strip $(VERBOSE)),$1,@$1) # kept for retrocompat
+L = $(if $(strip $(VERBOSE)),,@)
+
+ifeq ($(CC),)
+CC        = clang
+endif
 
 SYSROOT = $(shell $(GCCPATH)arm-none-eabi-gcc -print-sysroot)
 ifeq ($(SYSROOT),)
@@ -42,37 +48,76 @@ CFLAGS   += -I/usr/include
 else
 CFLAGS   += --sysroot="$(SYSROOT)"
 endif
-CFLAGS += -gdwarf-2  -gstrict-dwarf
-CFLAGS += -O3 -Os 
-CFLAGS += -fomit-frame-pointer -momit-leaf-frame-pointer 
-CFLAGS += -mcpu=cortex-m0 -mthumb 
-CFLAGS += -fno-common -mtune=cortex-m0 -mlittle-endian 
-CFLAGS += -std=gnu99 -Werror=int-to-pointer-cast -Wall -Wextra #-save-temps
-CFLAGS += -fdata-sections -ffunction-sections -funsigned-char -fshort-enums 
-CFLAGS += -mno-unaligned-access 
-CFLAGS += -Wno-unused-parameter -Wno-duplicate-decl-specifier
-CFLAGS +=  --target=armv6m-none-eabi
-CFLAGS += -fropi
-CFLAGS += -frwpi
-CFLAGS += -fno-jump-tables # avoid jump tables for switch to avoid problems with invalid PIC access
-CFLAGS += -nostdlib -nodefaultlibs
 
-AFLAGS += -ggdb2 -O3 -Os -mcpu=cortex-m0 -fno-common -mtune=cortex-m0
+CFLAGS   += -gdwarf-2  -gstrict-dwarf
+CFLAGS   += -O3 -Os
+CFLAGS   += -fomit-frame-pointer -momit-leaf-frame-pointer
+CFLAGS   += -mcpu=cortex-m0plus -mthumb
+CFLAGS   += -fno-common -mtune=cortex-m0plus -mlittle-endian
+CFLAGS   += -std=gnu99 -Werror=int-to-pointer-cast -Wall -Wextra -Wno-main
+CFLAGS   += -fdata-sections -ffunction-sections -funsigned-char -fshort-enums
+CFLAGS   += -mno-unaligned-access
+CFLAGS   +=  --target=armv6m-none-eabi
+CFLAGS   += -fropi
+CFLAGS   += -fno-jump-tables # avoid jump tables for switch to avoid problems with invalid PIC access
+CFLAGS   += -nostdlib -nodefaultlibs
 
-#LDFLAGS += -fropi -frwpi 
-LDFLAGS += --target=armv6m-none-eabi
-LDFLAGS += -gdwarf-2  -gstrict-dwarf 
-LDFLAGS += -O3 -Os
-LDFLAGS += -fomit-frame-pointer -momit-leaf-frame-pointer 
-LDFLAGS += -mno-movt
-LDFLAGS += -Wall 
-LDFLAGS += -mcpu=cortex-m0 -mthumb 
-LDFLAGS += -mtune=cortex-m0 -mlittle-endian 
-LDFLAGS += -fno-common -ffunction-sections -fdata-sections -fwhole-program
-LDFLAGS += -mno-unaligned-access
-LDFLAGS += -nostdlib -nodefaultlibs #-nostartfiles
-LDFLAGS += -L$(BOLOS_SDK)/lib/
-ifndef SCRIPT_LD
-  SCRIPT_LD:=$(BOLOS_SDK)/script.ld
+AFLAGS   += -ggdb2 -O3 -Os -mcpu=cortex-m0plus -fno-common -mtune=cortex-m0plus
+
+LDFLAGS  += -gdwarf-2  -gstrict-dwarf
+LDFLAGS  += -O3 -Os
+LDFLAGS  += -fomit-frame-pointer
+LDFLAGS  += -Wall
+LDFLAGS  += -mcpu=cortex-m0plus -mthumb
+LDFLAGS  += -fno-common -ffunction-sections -fdata-sections -fwhole-program
+LDFLAGS  += -mno-unaligned-access
+LDFLAGS  += -Wl,--gc-sections -Wl,-Map,debug/app.map
+LDFLAGS  += --specs=nano.specs
+
+ifeq ($(TARGET_NAME),TARGET_NANOX)
+CFLAGS   += -frwpi
+LDFLAGS  += -momit-leaf-frame-pointer
+LDFLAGS  += --target=armv6m-none-eabi
+LDFLAGS  += -mtune=cortex-m0plus -mlittle-endian
+LDFLAGS  += -nostdlib -nodefaultlibs #-nostartfiles
+LDFLAGS  += -mno-movt
+LDFLAGS  += -L$(BOLOS_SDK)/lib/
+else
+LDFLAGS  += -nostartfiles
 endif
-LDFLAGS += -T$(SCRIPT_LD) -Wl,--gc-sections -Wl,-Map,debug/app.map #,--cref
+
+ifeq ($(TARGET_NAME),TARGET_NANOX)
+# Screen is directly connected to the SE
+DEFINES       += HAVE_SE_SCREEN
+# Button is directly connected to the SE
+DEFINES       += HAVE_SE_BUTTON
+# MCU serial is stored on board of the SE
+DEFINES       += HAVE_MCU_SERIAL_STORAGE
+DEFINES       += HAVE_FONTS
+# already defined within apps
+# DEFINES       += HAVE_BLE
+DEFINES       += HAVE_BATTERY
+else
+DEFINES       += HAVE_SEED_COOKIE
+DEFINES       += BAGL_WIDTH=128 BAGL_HEIGHT=32
+endif
+
+# include builtin CX libs options
+-include $(BOLOS_SDK)/Makefile.conf.cx
+
+ifneq ($(BOLOS_ENV),)
+$(info BOLOS_ENV=$(BOLOS_ENV))
+CLANGPATH := $(BOLOS_ENV)/clang-arm-fropi/bin/
+GCCPATH := $(BOLOS_ENV)/gcc-arm-none-eabi-5_3-2016q1/bin/
+else
+$(info BOLOS_ENV is not set: falling back to CLANGPATH and GCCPATH)
+endif
+ifeq ($(CLANGPATH),)
+$(info CLANGPATH is not set: clang will be used from PATH)
+endif
+ifeq ($(GCCPATH),)
+$(info GCCPATH is not set: arm-none-eabi-* will be used from PATH)
+endif
+
+# define the default makefile target (high in include to avoid glyph.h or what not specific target to be the default one when no target passed on the make command line)
+all: default
