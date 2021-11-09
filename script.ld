@@ -74,7 +74,7 @@ SECTIONS
   
     _install_parameters = .;
     _nvram_end = .;
-  } > FLASH = 0x00
+  } > FLASH
 
   .data (NOLOAD):
   {
@@ -116,14 +116,14 @@ SECTIONS
     _estack = ABSOLUTE(END_STACK);
     PROVIDE( _estack = ABSOLUTE(END_STACK) );
 
-  } > SRAM = 0x00
+  } > SRAM
 
   /****************************************************************/
   /* DEBUG                                                        */
   /****************************************************************/
 
   /* remove the debugging information from the standard libraries */
-  DEBUG (NOLOAD) :
+  /DISCARD/ :
   {
     libc.a ( * )
     libm.a ( * )
