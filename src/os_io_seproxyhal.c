@@ -22,7 +22,9 @@
 #ifndef HAVE_SEPROXYHAL_MCU
 # define HAVE_SEPROXYHAL_MCU
 #endif // HAVE_SEPROXYHAL_MCU
+#ifndef HAVE_MCU_PROTECT
 #define HAVE_MCU_PROTECT
+#endif // HAVE_MCU_PROTECT
 #endif // TARGET_NANOX
 
 #include "errors.h"
