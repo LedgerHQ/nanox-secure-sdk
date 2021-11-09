@@ -1442,6 +1442,7 @@ unsigned int os_io_seph_recv_and_process(unsigned int dont_process_ux_events) {
   return 0;
 }
 
+#if !defined(APP_UX)
 unsigned int os_ux_blocking(bolos_ux_params_t* params) {
   unsigned int ret;
 
@@ -1468,6 +1469,7 @@ unsigned int os_ux_blocking(bolos_ux_params_t* params) {
 
   return ret;
 }
+#endif // !defined(APP_UX)
 
 #ifdef HAVE_PRINTF
 void mcu_usb_prints(const char* str, unsigned int charcount) {
