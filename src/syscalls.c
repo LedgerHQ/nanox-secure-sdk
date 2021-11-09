@@ -1118,12 +1118,20 @@ void os_sched_exec ( unsigned int app_idx ) {
   return;
 }
 
-void os_sched_exit ( bolos_task_status_t exit_code ) {
+void __attribute__((noreturn)) os_sched_exit ( bolos_task_status_t exit_code ) {
   unsigned int parameters [2+1];
   parameters[0] = (unsigned int)exit_code;
   parameters[1] = 0;
   SVC_Call(SYSCALL_os_sched_exit_ID_IN, parameters);
-  return;
+
+  // The os_sched_exit syscall should never return. Just in case, prevent the
+  // device from freezing (because of the following infinite loop) thanks to an
+  // undefined instruction.
+  asm volatile ("udf #255");
+
+  // remove the warning caused by -Winvalid-noreturn
+  while (1) {
+  }
 }
 
 bolos_bool_t os_sched_is_running ( unsigned int task_idx ) {
