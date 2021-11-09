@@ -857,14 +857,14 @@ unsigned int bagl_label_roundtrip_duration_ms_buf(const bagl_element_t* e, const
     return 0;
   }
 
-  unsigned int text_adr = (unsigned int)PIC((unsigned int)str);
+  const char *text_adr = (const char *) PIC(str);
   unsigned int textlen = 0;
 
   // no delay, no text to display
   if (!text_adr) {
     return 0;
   }
-  textlen = strlen((const char*)text_adr);
+  textlen = strlen(text_adr);
 
   // no delay, all text fits
   textlen = textlen * average_char_width;
