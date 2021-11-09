@@ -185,7 +185,7 @@ bool cx_ecdsa_verify_no_throw(const cx_ecfp_public_key_t *pukey,
  * 
  * @return             1 if the signature is verified, 0 otherwise.
  */
-static inline bool cx_ecdsa_verify ( const cx_ecfp_public_key_t * pukey, int mode, cx_md_t hashID, const unsigned char * hash, unsigned int hash_len, unsigned char * sig, unsigned int sig_len)
+static inline bool cx_ecdsa_verify ( const cx_ecfp_public_key_t * pukey, int mode, cx_md_t hashID, const unsigned char * hash, unsigned int hash_len, const unsigned char * sig, unsigned int sig_len)
 {
   UNUSED(mode);
   UNUSED(hashID);
