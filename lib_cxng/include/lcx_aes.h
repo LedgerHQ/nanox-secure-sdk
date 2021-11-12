@@ -46,7 +46,7 @@
  *
  * @param[in]  rawkey  Pointer to the supplied key.
  * 
- * @param[in]  key_len Length of the key: 8, 16 or 24 octets.
+ * @param[in]  key_len Length of the key: 16, 24 or 32 octets.
  * 
  * @param[out] key     Pointer to the key.
  * 
@@ -65,7 +65,7 @@ cx_err_t cx_aes_init_key_no_throw(const uint8_t *rawkey, size_t key_len, cx_aes_
  *
  * @param[in]  rawkey  Pointer to the supplied key.
  * 
- * @param[in]  key_len Length of the key: 8, 16 or 24 octets.
+ * @param[in]  key_len Length of the key: 16, 24 or 32 octets.
  * 
  * @param[out] key     Pointer to the key.
  * 

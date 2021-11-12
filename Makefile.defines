@@ -72,7 +72,6 @@ LDFLAGS  += -mcpu=cortex-m0plus -mthumb
 LDFLAGS  += -fno-common -ffunction-sections -fdata-sections -fwhole-program
 LDFLAGS  += -mno-unaligned-access
 LDFLAGS  += -Wl,--gc-sections -Wl,-Map,debug/app.map
-LDFLAGS  += --specs=nano.specs
 
 ifeq ($(TARGET_NAME),TARGET_NANOX)
 CFLAGS   += -frwpi
@@ -83,7 +82,7 @@ LDFLAGS  += -nostdlib -nodefaultlibs #-nostartfiles
 LDFLAGS  += -mno-movt
 LDFLAGS  += -L$(BOLOS_SDK)/lib/
 else
-LDFLAGS  += -nostartfiles
+LDFLAGS  += -nostartfiles --specs=nano.specs
 endif
 
 ifeq ($(TARGET_NAME),TARGET_NANOX)

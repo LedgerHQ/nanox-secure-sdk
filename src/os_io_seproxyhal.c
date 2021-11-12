@@ -22,7 +22,9 @@
 #ifndef HAVE_SEPROXYHAL_MCU
 # define HAVE_SEPROXYHAL_MCU
 #endif // HAVE_SEPROXYHAL_MCU
+#ifndef HAVE_MCU_PROTECT
 #define HAVE_MCU_PROTECT
+#endif // HAVE_MCU_PROTECT
 #endif // TARGET_NANOX
 
 #include "errors.h"
@@ -855,14 +857,14 @@ unsigned int bagl_label_roundtrip_duration_ms_buf(const bagl_element_t* e, const
     return 0;
   }
 
-  unsigned int text_adr = (unsigned int)PIC((unsigned int)str);
+  const char *text_adr = (const char *) PIC(str);
   unsigned int textlen = 0;
 
   // no delay, no text to display
   if (!text_adr) {
     return 0;
   }
-  textlen = strlen((const char*)text_adr);
+  textlen = strlen(text_adr);
 
   // no delay, all text fits
   textlen = textlen * average_char_width;
@@ -1442,6 +1444,7 @@ unsigned int os_io_seph_recv_and_process(unsigned int dont_process_ux_events) {
   return 0;
 }
 
+#if !defined(APP_UX)
 unsigned int os_ux_blocking(bolos_ux_params_t* params) {
   unsigned int ret;
 
@@ -1468,6 +1471,7 @@ unsigned int os_ux_blocking(bolos_ux_params_t* params) {
 
   return ret;
 }
+#endif // !defined(APP_UX)
 
 #ifdef HAVE_PRINTF
 void mcu_usb_prints(const char* str, unsigned int charcount) {
