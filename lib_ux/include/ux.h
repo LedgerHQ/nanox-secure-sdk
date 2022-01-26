@@ -1,7 +1,7 @@
 
 /*******************************************************************************
 *   Ledger Nano S - Secure firmware
-*   (c) 2021 Ledger
+*   (c) 2022 Ledger
 *
 *  Licensed under the Apache License, Version 2.0 (the "License");
 *  you may not use this file except in compliance with the License.
@@ -482,7 +482,7 @@ extern bolos_ux_params_t G_ux_params;
 /**
  * internal bolos ux event processing with callback in case event is to be processed by the application
  */
-#define UX_FORWARD_EVENT(callback, ignoring_app_if_ux_busy) UX_FORWARD_EVENT_REDRAWCB(0, G_ux_params, G_ux, os_ux, os_sched_last_status, callback, UX_REDISPLAY(), ignoring_app_if_ux_busy);
+#define UX_FORWARD_EVENT(callback, ignoring_app_if_ux_busy) UX_FORWARD_EVENT_REDRAWCB(0, G_ux_params, G_io_asynch_ux_callback, os_ux, os_sched_last_status, callback, UX_REDISPLAY(), ignoring_app_if_ux_busy);
 
 #define UX_CONTINUE_DISPLAY_APP(displayed_callback) \
     UX_DISPLAY_NEXT_ELEMENT(); \

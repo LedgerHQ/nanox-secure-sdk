@@ -12,11 +12,9 @@
 #include "cx_hmac.h"
 #include "cx_pbkdf2.h"
 #include "cx_init.h"
-#include "cx_Groestl-ref.h"
 #include "cx_blake2.h"
 #include "cx_eddsa.h"
 #include "cx_ripemd160.h"
-#include "cx_groestl.h"
 #include "cx_selftests.h"
 #include "cx_math.h"
 #include "cx_ecdsa.h"
@@ -68,11 +66,6 @@ unsigned long __attribute((section ("._cx_exported_functions"))) cx_exported_fun
   [_NR_cx_edwards_compress_point_no_throw] = (unsigned long)cx_edwards_compress_point_no_throw,
   [_NR_cx_edwards_decompress_point_no_throw] = (unsigned long)cx_edwards_decompress_point_no_throw,
   [_NR_cx_encode_coord] = (unsigned long)cx_encode_coord,
-  [_NR_cx_groestl] = (unsigned long)cx_groestl,
-  [_NR_cx_groestl_final] = (unsigned long)cx_groestl_final,
-  [_NR_cx_groestl_get_output_size] = (unsigned long)cx_groestl_get_output_size,
-  [_NR_cx_groestl_init_no_throw] = (unsigned long)cx_groestl_init_no_throw,
-  [_NR_cx_groestl_update] = (unsigned long)cx_groestl_update,
   [_NR_cx_hash_final] = (unsigned long)cx_hash_final,
   [_NR_cx_hash_get_info] = (unsigned long)cx_hash_get_info,
   [_NR_cx_hash_get_size] = (unsigned long)cx_hash_get_size,

@@ -25,11 +25,11 @@ typedef enum bolos_ux_e {
   BOLOS_UX_STATUS_BAR,
 #endif // TARGET_BLUE
 
-  BOLOS_UX_VALIDATE_PIN = 14,
+  BOLOS_UX_VALIDATE_PIN = 15,
 
 #if defined(HAVE_BLE)
   BOLOS_UX_ASYNCHMODAL_PAIRING_REQUEST =
-      35, // ask the ux to display a modal to accept/reject the current pairing
+      36, // ask the ux to display a modal to accept/reject the current pairing
           // request
   BOLOS_UX_ASYNCHMODAL_PAIRING_CANCEL,
 #endif // HAVE_BLE

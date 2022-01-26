@@ -1,7 +1,7 @@
 
 /*******************************************************************************
 *   Ledger Nano S - Secure firmware
-*   (c) 2021 Ledger
+*   (c) 2022 Ledger
 *
 *  Licensed under the Apache License, Version 2.0 (the "License");
 *  you may not use this file except in compliance with the License.
@@ -298,6 +298,39 @@ unsigned int io_seproxyhal_handle_event(void) {
       LEDGER_BLE_receive();
       return 1;
   #endif // HAVE_BLE
+
+    case SEPROXYHAL_TAG_UX_EVENT:
+      switch (G_io_seproxyhal_spi_buffer[3]) {
+
+#ifdef HAVE_BLE
+      case SEPROXYHAL_TAG_UX_CMD_BLE_DISABLE_ADV:
+        LEDGER_BLE_enable_advertising(0);
+        return 1;
+        break;
+
+      case SEPROXYHAL_TAG_UX_CMD_BLE_ENABLE_ADV:
+        LEDGER_BLE_enable_advertising(1);
+        return 1;
+        break;
+
+      case SEPROXYHAL_TAG_UX_CMD_BLE_RESET_PAIRINGS:
+        LEDGER_BLE_reset_pairings();
+        return 1;
+        break;
+#endif // HAVE_BLE
+
+#ifndef HAVE_BOLOS
+      case SEPROXYHAL_TAG_UX_CMD_REDISPLAY:
+        ux_stack_redisplay();
+        return 1;
+        break;
+#endif // HAVE_BOLOS
+
+      default:
+        return io_event(CHANNEL_SPI);
+        break;
+      }
+      break;
 
     case SEPROXYHAL_TAG_CAPDU_EVENT:
       io_seproxyhal_handle_capdu_event();
@@ -970,37 +1003,31 @@ void io_seproxyhal_se_reset(void) {
 #ifdef HAVE_BLE
 void io_seph_ble_enable(unsigned char enable)
 {
-  if (G_io_app.ble_ready) {
-    if (enable) {
-      G_io_app.enabling_advertising = 1;
-      G_io_app.disabling_advertising = 0;
-    }
-    else {
-      G_io_app.enabling_advertising = 0;
-      G_io_app.disabling_advertising = 1;
-    }
-    G_io_seproxyhal_spi_buffer[0] = SEPROXYHAL_TAG_BLE_SEND;
-    G_io_seproxyhal_spi_buffer[1] = 0;
-    G_io_seproxyhal_spi_buffer[2] = 3;
-    G_io_seproxyhal_spi_buffer[3] = 0x20;
-    G_io_seproxyhal_spi_buffer[4] = 0x0a;
-    G_io_seproxyhal_spi_buffer[5] = (enable ? 1 : 0);
-    io_seproxyhal_spi_send(G_io_seproxyhal_spi_buffer, 6);
-  }
+  G_io_seproxyhal_spi_buffer[0] = SEPROXYHAL_TAG_UX_CMD;
+  G_io_seproxyhal_spi_buffer[1] = 0;
+  G_io_seproxyhal_spi_buffer[2] = 1;
+  G_io_seproxyhal_spi_buffer[3] = (enable ? SEPROXYHAL_TAG_UX_CMD_BLE_ENABLE_ADV : SEPROXYHAL_TAG_UX_CMD_BLE_DISABLE_ADV);
+  io_seproxyhal_spi_send(G_io_seproxyhal_spi_buffer, 4);
 }
 
 void io_seph_ble_clear_bond_db(void)
 {
-  if (G_io_app.ble_ready) {
-    G_io_seproxyhal_spi_buffer[0] = SEPROXYHAL_TAG_BLE_SEND;
-    G_io_seproxyhal_spi_buffer[1] = 0;
-    G_io_seproxyhal_spi_buffer[2] = 2;
-    G_io_seproxyhal_spi_buffer[3] = 0xfc;
-    G_io_seproxyhal_spi_buffer[4] = 0x94;
-    io_seproxyhal_spi_send(G_io_seproxyhal_spi_buffer, 5);
-  }
+  G_io_seproxyhal_spi_buffer[0] = SEPROXYHAL_TAG_UX_CMD;
+  G_io_seproxyhal_spi_buffer[1] = 0;
+  G_io_seproxyhal_spi_buffer[2] = 1;
+  G_io_seproxyhal_spi_buffer[3] = SEPROXYHAL_TAG_UX_CMD_BLE_RESET_PAIRINGS;
+  io_seproxyhal_spi_send(G_io_seproxyhal_spi_buffer, 4);
 }
 #endif // HAVE_BLE
+
+void io_seph_ux_redisplay(void)
+{
+  G_io_seproxyhal_spi_buffer[0] = SEPROXYHAL_TAG_UX_CMD;
+  G_io_seproxyhal_spi_buffer[1] = 0;
+  G_io_seproxyhal_spi_buffer[2] = 1;
+  G_io_seproxyhal_spi_buffer[3] = SEPROXYHAL_TAG_UX_CMD_REDISPLAY;
+  io_seproxyhal_spi_send(G_io_seproxyhal_spi_buffer, 4);
+}
 
 static const unsigned char seph_io_usb_disconnect[] = {
   SEPROXYHAL_TAG_USB_CONFIG,

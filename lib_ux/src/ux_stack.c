@@ -1,7 +1,7 @@
 
 /*******************************************************************************
 *   Ledger Nano S - Secure firmware
-*   (c) 2021 Ledger
+*   (c) 2022 Ledger
 *
 *  Licensed under the Apache License, Version 2.0 (the "License");
 *  you may not use this file except in compliance with the License.
@@ -287,9 +287,9 @@ void ux_stack_display_elements(ux_stack_slot_t *slot) {
 #endif // HAVE_SE_SCREEN
 
 #ifndef HAVE_SE_SCREEN
-#if UX_STACK_SLOT_ARRAY_COUNT == 1
 void ux_stack_al_display_next_element(unsigned int stack_slot) __attribute__((weak));
 void ux_stack_al_display_next_element(unsigned int stack_slot) {
+#if UX_STACK_SLOT_ARRAY_COUNT == 1
   unsigned int status = os_sched_last_status(TASK_BOLOS_UX);
   if (status != BOLOS_UX_IGNORE && status != BOLOS_UX_CONTINUE) {
     while (G_ux.stack[stack_slot].element_arrays[0].element_array &&
@@ -308,8 +308,8 @@ void ux_stack_al_display_next_element(unsigned int stack_slot) {
       G_ux.stack[stack_slot].element_index++;
     }
   }
-}
 #endif // UX_STACK_SLOT_ARRAY_COUNT == 1
+}
 #endif // HAVE_SE_SCREEN
 
 // common code for all screens

@@ -56,11 +56,6 @@ CX_TRAMPOLINE _NR_cx_eddsa_verify_no_throw                 cx_eddsa_verify_no_th
 CX_TRAMPOLINE _NR_cx_edwards_compress_point_no_throw       cx_edwards_compress_point_no_throw
 CX_TRAMPOLINE _NR_cx_edwards_decompress_point_no_throw     cx_edwards_decompress_point_no_throw
 CX_TRAMPOLINE _NR_cx_encode_coord                          cx_encode_coord
-CX_TRAMPOLINE _NR_cx_groestl                               cx_groestl
-CX_TRAMPOLINE _NR_cx_groestl_final                         cx_groestl_final
-CX_TRAMPOLINE _NR_cx_groestl_get_output_size               cx_groestl_get_output_size
-CX_TRAMPOLINE _NR_cx_groestl_init_no_throw                 cx_groestl_init_no_throw
-CX_TRAMPOLINE _NR_cx_groestl_update                        cx_groestl_update
 CX_TRAMPOLINE _NR_cx_hash_final                            cx_hash_final
 CX_TRAMPOLINE _NR_cx_hash_get_info                         cx_hash_get_info
 CX_TRAMPOLINE _NR_cx_hash_get_size                         cx_hash_get_size

@@ -1,7 +1,7 @@
 
 /*******************************************************************************
 *   Ledger Nano S - Secure firmware
-*   (c) 2021 Ledger
+*   (c) 2022 Ledger
 *
 *  Licensed under the Apache License, Version 2.0 (the "License");
 *  you may not use this file except in compliance with the License.
@@ -51,7 +51,7 @@
  * for Zilliqa
  * - Multiple hash functions from SHA-2 and SHA-3 families as well as extendable
  * output functions (SHAKE-128 and SHAKE-256)
- * - GROESTL and RIPEMD-160
+ * - RIPEMD-160
  * - Keyed-hash Message Authentication Code
  */
 

@@ -1,7 +1,7 @@
 
 /*******************************************************************************
 *   Ledger Nano S - Secure firmware
-*   (c) 2021 Ledger
+*   (c) 2022 Ledger
 *
 *  Licensed under the Apache License, Version 2.0 (the "License");
 *  you may not use this file except in compliance with the License.
@@ -37,9 +37,11 @@
 void LEDGER_BLE_init(void);
 void LEDGER_BLE_send(uint8_t* packet, uint16_t packet_length);
 void LEDGER_BLE_receive(void);
+void LEDGER_BLE_enable_advertising(uint8_t enable);
+void LEDGER_BLE_reset_pairings(void);
 
 #define LEDGER_BLE_get_mac_address(address) { \
-	unsigned char se_serial[8]; \
+	unsigned char se_serial[8] = {0}; \
 	os_serial(se_serial, sizeof(se_serial)); \
 	unsigned int uid = cx_crc16(se_serial, 4); \
 	address[0] = uid; \
