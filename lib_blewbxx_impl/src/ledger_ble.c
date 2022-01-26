@@ -1,7 +1,7 @@
 
 /*******************************************************************************
 *   Ledger Nano S - Secure firmware
-*   (c) 2021 Ledger
+*   (c) 2022 Ledger
 *
 *  Licensed under the Apache License, Version 2.0 (the "License");
 *  you may not use this file except in compliance with the License.
@@ -54,6 +54,7 @@ typedef enum {
 	BLE_INIT_STEP_ADD_SERVICE,
 	BLE_INIT_STEP_ADD_NOTIFICATION_CHARACTERISTIC,
 	BLE_INIT_STEP_ADD_WRITE_CHARACTERISTIC,
+	BLE_INIT_STEP_ADD_WRITE_COMMAND_CHARACTERISTIC,
 	BLE_INIT_STEP_SET_TX_POWER_LEVEL,
 	BLE_INIT_STEP_CONFIGURE_ADVERTISING,
 	BLE_INIT_STEP_END,
@@ -85,6 +86,7 @@ typedef struct {
 	uint16_t max_tx_time;
 	uint16_t max_rx_octets;
 	uint16_t max_rx_time;
+	uint8_t  encrypted;
 } ble_connection_t;
 
 typedef struct {
@@ -117,11 +119,20 @@ typedef struct {
 	uint16_t ledger_gatt_service_handle;
 	uint16_t ledger_gatt_notification_characteristic_handle;
 	uint16_t ledger_gatt_write_characteristic_handle;
+	uint16_t ledger_gatt_write_cmd_characteristic_handle;
 	uint16_t mtu;
 	uint8_t  notifications_enabled;
 
+	// PAIRING
+	uint8_t clear_pairing;
+
 	// APDU
 	uint8_t  wait_write_resp_ack;
+
+	// TRANSFER MODE
+	uint8_t  transfer_mode_enable;
+	uint8_t  resp_length;
+	uint8_t  resp[2];
 
 } ledger_ble_data_t;
 
@@ -157,6 +168,8 @@ static void rsp_user_pairing_passkey(unsigned int status);
 static void attribute_modified(uint8_t *buffer, uint16_t length);
 static void write_permit_request(uint8_t *buffer, uint16_t length);
 static void start_advertising(void);
+static void notify_chunk(void);
+static void check_transfer_mode(uint8_t enable);
 
 /* Exported variables --------------------------------------------------------*/
 
@@ -164,6 +177,7 @@ static void start_advertising(void);
 const uint8_t service_uuid[16] = {0x72,0x65,0x67,0x64,0x65,0x4c,0x00,0x00,0x04,0x00,0x97,0x2C,0x00,0x34,0xD6,0x13,};
 const uint8_t charUuidTX[16]   = {0x72,0x65,0x67,0x64,0x65,0x4c,0x01,0x00,0x04,0x00,0x97,0x2C,0x00,0x34,0xD6,0x13,};
 const uint8_t charUuidRX[16]   = {0x72,0x65,0x67,0x64,0x65,0x4c,0x02,0x00,0x04,0x00,0x97,0x2C,0x00,0x34,0xD6,0x13,};
+const uint8_t charUuidRX2[16]  = {0x72,0x65,0x67,0x64,0x65,0x4c,0x03,0x00,0x04,0x00,0x97,0x2C,0x00,0x34,0xD6,0x13,};
 
 static ledger_protocol_t ledger_protocol_data;
 static ledger_ble_data_t ledger_ble_data;
@@ -317,6 +331,11 @@ static void init_mngr(uint16_t opcode, uint8_t *buffer, uint16_t length)
 	        ) {
 		ledger_ble_data.ledger_gatt_write_characteristic_handle = U2LE(buffer, 1);
 	}
+	else if (  (length >= 2)
+	         &&(ledger_ble_data.init_step == BLE_INIT_STEP_ADD_WRITE_COMMAND_CHARACTERISTIC)
+	        ) {
+		ledger_ble_data.ledger_gatt_write_cmd_characteristic_handle = U2LE(buffer, 1);
+	}
 	else if (ledger_ble_data.init_step == BLE_INIT_STEP_CONFIGURE_ADVERTISING) {
 		ledger_ble_data.adv_enable = !os_setting_get(OS_SETTING_PLANEMODE, NULL, 0);
 		configure_advertising_mngr(opcode);
@@ -388,7 +407,7 @@ static void init_mngr(uint16_t opcode, uint8_t *buffer, uint16_t length)
 		                  (Char_UUID_t*)charUuidTX,
 		                  MAX_MTU_SIZE,
 		                  CHAR_PROP_NOTIFY,
-		                  ATTR_PERMISSION_NONE,
+		                  ATTR_PERMISSION_AUTHEN_WRITE,
 		                  GATT_DONT_NOTIFY_EVENTS,
 		                  MAX_ENCRY_KEY_SIZE,
 		                  CHAR_VALUE_LEN_VARIABLE,
@@ -409,6 +428,20 @@ static void init_mngr(uint16_t opcode, uint8_t *buffer, uint16_t length)
 		                  &ledger_ble_data.ledger_gatt_write_characteristic_handle);
 		break;
 
+	case BLE_INIT_STEP_ADD_WRITE_COMMAND_CHARACTERISTIC:
+		ledger_ble_data.hci_cmd_opcode = 0xfd04;
+		aci_gatt_add_char(ledger_ble_data.ledger_gatt_service_handle,
+		                  UUID_TYPE_128,
+		                  (Char_UUID_t*)charUuidRX2,
+		                  MAX_MTU_SIZE,
+		                  CHAR_PROP_WRITE_WITHOUT_RESP,
+		                  ATTR_PERMISSION_AUTHEN_WRITE,
+		                  GATT_NOTIFY_ATTRIBUTE_WRITE,
+		                  MAX_ENCRY_KEY_SIZE,
+		                  CHAR_VALUE_LEN_VARIABLE,
+		                  &ledger_ble_data.ledger_gatt_write_cmd_characteristic_handle);
+		break;
+
 	case BLE_INIT_STEP_SET_TX_POWER_LEVEL:
 		ledger_ble_data.hci_cmd_opcode = 0xfc0f;
 		aci_hal_set_tx_power_level(1,  // High power
@@ -424,6 +457,10 @@ static void init_mngr(uint16_t opcode, uint8_t *buffer, uint16_t length)
 
 	case BLE_INIT_STEP_END:
 		LOG_BLE("INIT END\n");
+		if (ledger_ble_data.clear_pairing == 0xC1) {
+			ledger_ble_data.clear_pairing = 0;
+			aci_gap_clear_security_db();
+		}
 		G_io_app.ble_ready = 1;
 		ledger_ble_data.state = BLE_STATE_INITIALIZED;
 		break;
@@ -451,34 +488,31 @@ static void hci_evt_cmd_complete(uint8_t *buffer, uint16_t length)
 		// ACI_GATT_WRITE_RESP
 		if (ledger_ble_data.wait_write_resp_ack != 0) {
 			ledger_ble_data.wait_write_resp_ack = 0;
-			if (ledger_protocol_data.chunk_length >= 2) {
+			if (ledger_protocol_data.tx_chunk_length >= 2) {
 				G_io_app.ble_xfer_timeout = 2000;
-				aci_gatt_update_char_value(ledger_ble_data.ledger_gatt_service_handle,
-				                           ledger_ble_data.ledger_gatt_notification_characteristic_handle,
-				                           0,
-				                           ledger_protocol_data.chunk_length-2,
-				                           &ledger_protocol_data.chunk[2]);
+				notify_chunk();
 			}
 		}
 	}
 	else if (opcode == 0xfd06) {
 		// ACI_GATT_UPDATE_CHAR_VALUE
-		ledger_protocol_data.chunk_length = 0;
-		if (ledger_protocol_data.tx_apdu_buffer) {
-			LEDGER_PROTOCOL_tx(NULL, 0);
-			if (ledger_protocol_data.chunk_length >= 2) {
-				aci_gatt_update_char_value(ledger_ble_data.ledger_gatt_service_handle,
-				                           ledger_ble_data.ledger_gatt_notification_characteristic_handle,
-				                           0,
-				                           ledger_protocol_data.chunk_length-2,
-				                           &ledger_protocol_data.chunk[2]);
+		ledger_protocol_data.tx_chunk_length = 0;
+		if (ledger_ble_data.transfer_mode_enable) {
+			G_io_app.apdu_length = ledger_protocol_data.rx_apdu_length;
+			G_io_app.apdu_state  = APDU_BLE;
+		}
+		else {
+			if (ledger_protocol_data.tx_apdu_buffer) {
+				LEDGER_PROTOCOL_tx(NULL, 0);
+				notify_chunk();
+			}
+			if (!ledger_protocol_data.tx_apdu_buffer) {
+				ledger_protocol_data.tx_chunk_length = 0;
+				G_io_app.ble_xfer_timeout = 0;
+				G_io_app.apdu_state       = APDU_IDLE;
 			}
 		}
-		if (!ledger_protocol_data.tx_apdu_buffer) {
-			ledger_protocol_data.chunk_length = 0;
-			G_io_app.ble_xfer_timeout = 0;
-			G_io_app.apdu_state = APDU_IDLE;
-		}
+		G_io_app.apdu_media = IO_APDU_MEDIA_BLE;
 	}
 	else if (opcode == 0x200a) {
 		LOG_BLE("HCI_LE_SET_ADVERTISE_ENABLE %04X %d %d\n", ledger_ble_data.connection.connection_handle,
@@ -486,9 +520,8 @@ static void hci_evt_cmd_complete(uint8_t *buffer, uint16_t length)
 		                                                    G_io_app.enabling_advertising);
 		if (ledger_ble_data.connection.connection_handle != 0xFFFF) {
 			if (G_io_app.disabling_advertising) {
-				// Connected & ordered to disable ble, disconnect properly
-				aci_gap_terminate(ledger_ble_data.connection.connection_handle,
-				                  HCI_CONNECTION_TERMINATED_BY_LOCAL_HOST_ERR_CODE);
+				// Connected & ordered to disable ble, force disconnection
+				LEDGER_BLE_init();
 			}
 		}
 		else if (G_io_app.disabling_advertising) {
@@ -534,6 +567,8 @@ static void hci_evt_le_meta_evt(uint8_t *buffer, uint16_t length)
 		ledger_ble_data.connection.conn_latency          = U2LE(buffer, 14);
 		ledger_ble_data.connection.supervision_timeout   = U2LE(buffer, 16);
 		ledger_ble_data.connection.master_clock_accuracy = buffer[18];
+		ledger_ble_data.connection.encrypted             = 0;
+		ledger_ble_data.transfer_mode_enable             = 0;
 		LOG_BLE("LE CONNECTION COMPLETE %04X - %04X- %04X- %04X\n", ledger_ble_data.connection.connection_handle,
 		                                                            ledger_ble_data.connection.conn_interval,
 		                                                            ledger_ble_data.connection.conn_latency,
@@ -656,8 +691,7 @@ static void hci_evt_vendor(uint8_t *buffer, uint16_t length)
 
 	case ACI_GATT_PROC_TIMEOUT_VSEVT_CODE:
 		LOG_BLE("PROCEDURE TIMEOUT\n");
-		aci_gap_terminate(ledger_ble_data.connection.connection_handle,
-		                  HCI_CONNECTION_TERMINATED_BY_LOCAL_HOST_ERR_CODE);
+		LEDGER_BLE_init();
 		break;
 
 	default:
@@ -757,6 +791,45 @@ static void attribute_modified(uint8_t *buffer, uint16_t length)
 			ledger_ble_data.notifications_enabled = 0;
 		}
 	}
+	else if (  (att_handle == ledger_ble_data.ledger_gatt_write_cmd_characteristic_handle+1)
+	         &&(ledger_ble_data.notifications_enabled)
+	         &&(ledger_ble_data.connection.encrypted)
+	         &&(att_data_length)
+	   ) {
+		LOG_BLE("WRITE CMD %d\n", length-4);
+		buffer[4] = 0xDE;
+		buffer[5] = 0xF1;
+		LEDGER_PROTOCOL_rx(&buffer[4], length-4);
+
+		if (ledger_protocol_data.rx_apdu_status == APDU_STATUS_COMPLETE) {
+			check_transfer_mode(G_io_app.transfer_mode);
+			if (ledger_ble_data.transfer_mode_enable) {
+				if (U2BE(ledger_ble_data.resp, 0) != SWO_SUCCESS) {
+					LOG_BLE("Transfer failed 0x%04x\n", U2BE(ledger_ble_data.resp, 0));
+					G_io_app.transfer_mode = 0;
+					check_transfer_mode(G_io_app.transfer_mode);
+					G_io_app.apdu_length = ledger_protocol_data.rx_apdu_length;
+					G_io_app.apdu_state  = APDU_BLE;
+				}
+				else {
+					LEDGER_PROTOCOL_tx(ledger_ble_data.resp, ledger_ble_data.resp_length);
+					notify_chunk();
+				}
+			}
+			else {
+				G_io_app.apdu_length = ledger_protocol_data.rx_apdu_length;
+				G_io_app.apdu_state  = APDU_BLE;
+			}
+		}
+		else if (ledger_protocol_data.tx_chunk_length >= 2) {
+			G_io_app.ble_xfer_timeout = 2000;
+			notify_chunk();
+			G_io_app.apdu_state = APDU_BLE;
+		}
+
+		ledger_protocol_data.rx_apdu_status = APDU_STATUS_WAITING;
+		G_io_app.apdu_media                 = IO_APDU_MEDIA_BLE;
+	}
 	else {
 		LOG_BLE("ATT MODIFIED %04X %d bytes at offset %d\n", att_handle, att_data_length, offset);
 	}
@@ -775,8 +848,11 @@ static void write_permit_request(uint8_t *buffer, uint16_t length)
 
 	if (  (att_handle == ledger_ble_data.ledger_gatt_write_characteristic_handle+1)
 	    &&(ledger_ble_data.notifications_enabled)
+	    &&(ledger_ble_data.connection.encrypted)
 	    &&(data_length)
 	   ) {
+		buffer[1] = 0xDE;
+		buffer[2] = 0xF1;
 		LEDGER_PROTOCOL_rx(&buffer[1], length-1);
 		aci_gatt_write_resp(ledger_ble_data.connection.connection_handle,
 		                    att_handle,
@@ -793,7 +869,7 @@ static void write_permit_request(uint8_t *buffer, uint16_t length)
 	}
 	else {
 		LOG_BLE("ATT WRITE %04X %d bytes\n", att_handle, data_length);
-		ledger_protocol_data.chunk_length = 0;
+		ledger_protocol_data.tx_chunk_length = 0;
 		aci_gatt_write_resp(ledger_ble_data.connection.connection_handle,
 		                    att_handle,
 		                    0,
@@ -819,15 +895,47 @@ static void start_advertising(void)
 	configure_advertising_mngr(0);
 }
 
+static void notify_chunk(void)
+{
+	if (ledger_protocol_data.tx_chunk_length >= 2) {
+		aci_gatt_update_char_value(ledger_ble_data.ledger_gatt_service_handle,
+		                           ledger_ble_data.ledger_gatt_notification_characteristic_handle,
+		                           0,
+		                           ledger_protocol_data.tx_chunk_length-2,
+		                           &ledger_protocol_data.tx_chunk[2]);
+	}
+}
+
+static void check_transfer_mode(uint8_t enable)
+{
+	if (ledger_ble_data.transfer_mode_enable != enable) {
+		LOG_BLE("LEDGER_BLE_set_transfer_mode %d\n", enable);
+	}
+
+	if (  (ledger_ble_data.transfer_mode_enable == 0)
+	    &&(enable != 0)
+	   ) {
+		ledger_ble_data.resp_length = 2;
+		U2BE_ENCODE(ledger_ble_data.resp, 0, SWO_SUCCESS);
+	}
+
+	ledger_ble_data.transfer_mode_enable = enable;
+}
+
 /* Exported functions --------------------------------------------------------*/
 void LEDGER_BLE_init(void)
 {
 	G_io_app.enabling_advertising  = 0;
 	G_io_app.disabling_advertising = 0;
 
-	ledger_ble_data.pairing_in_progress = 0;
+	if (ledger_ble_data.clear_pairing == 0xC1) {
+		memset(&ledger_ble_data, 0, sizeof(ledger_ble_data));
+		ledger_ble_data.clear_pairing = 0xC1;
+	}
+	else {
+		memset(&ledger_ble_data, 0, sizeof(ledger_ble_data));
+	}
 
-	memset(&ledger_ble_data, 0, sizeof(ledger_ble_data));
 	LEDGER_BLE_get_mac_address(ledger_ble_data.random_address);
 	ledger_ble_data.hci_cmd_opcode = 0xFFFF;
 	ledger_ble_data.state          = BLE_STATE_INITIALIZING;
@@ -843,22 +951,33 @@ void LEDGER_BLE_init(void)
 
 void LEDGER_BLE_send(uint8_t* packet, uint16_t packet_length)
 {
-	LEDGER_PROTOCOL_tx(packet, packet_length);
-	if (  (ledger_ble_data.wait_write_resp_ack == 0)
-	    &&(ledger_protocol_data.chunk_length >= 2)
+	if (  (ledger_ble_data.transfer_mode_enable != 0)
+	    &&(packet_length == 2)
 	   ) {
-		aci_gatt_update_char_value(ledger_ble_data.ledger_gatt_service_handle,
-		                           ledger_ble_data.ledger_gatt_notification_characteristic_handle,
-		                           0,
-		                           ledger_protocol_data.chunk_length-2,
-		                           &ledger_protocol_data.chunk[2]);
+		G_io_app.apdu_state         = APDU_IDLE;
+		ledger_ble_data.resp_length = 2;
+		ledger_ble_data.resp[0]     = packet[0];
+		ledger_ble_data.resp[1]     = packet[1];
+	}
+	else {
+		if (  (ledger_ble_data.resp_length != 0)
+		    &&(U2BE(ledger_ble_data.resp, 0) != SWO_SUCCESS)
+		   ) {
+			LEDGER_PROTOCOL_tx(ledger_ble_data.resp, ledger_ble_data.resp_length);
+		}
+		else {
+			LEDGER_PROTOCOL_tx(packet, packet_length);
+		}
+		ledger_ble_data.resp_length = 0;
+
+		if (ledger_ble_data.wait_write_resp_ack == 0) {
+			notify_chunk();
+		}
 	}
 }
 
 void LEDGER_BLE_receive(void)
 {
-	//uint16_t length = U2BE(G_io_seproxyhal_spi_buffer, 1);
-
 	if (G_io_seproxyhal_spi_buffer[3] == HCI_EVENT_PKT_TYPE) {
 		switch (G_io_seproxyhal_spi_buffer[4]) {
 
@@ -866,11 +985,25 @@ void LEDGER_BLE_receive(void)
 			LOG_BLE("HCI DISCONNECTION COMPLETE code %02X\n", G_io_seproxyhal_spi_buffer[9]);
 			ledger_ble_data.connection.connection_handle = 0xFFFF;
 			ledger_ble_data.advertising_enabled          = 0;
+			ledger_ble_data.connection.encrypted         = 0;
 			start_advertising();
 			break;
 
 		case HCI_ENCRYPTION_CHANGE_EVT_CODE:
-			LOG_BLE("HCI ENCRYPTION_CHANGE\n");
+			if (U2LE(G_io_seproxyhal_spi_buffer, 7) == ledger_ble_data.connection.connection_handle) {
+				if (G_io_seproxyhal_spi_buffer[9]) {
+					LOG_BLE("Link encrypted\n");
+					ledger_ble_data.connection.encrypted = 1;
+				}
+				else {
+					LOG_BLE("Link not encrypted\n");
+					ledger_ble_data.connection.encrypted = 0;
+				}
+			}
+			else {
+				LOG_BLE("HCI ENCRYPTION CHANGE EVT %d on connection handle \n", G_io_seproxyhal_spi_buffer[9],
+				                                                                U2LE(G_io_seproxyhal_spi_buffer, 7));
+			}
 			break;
 
 		case HCI_COMMAND_COMPLETE_EVT_CODE:
@@ -898,6 +1031,35 @@ void LEDGER_BLE_receive(void)
 
 		default:
 			break;
+		}
+	}
+}
+
+void LEDGER_BLE_enable_advertising(uint8_t enable)
+{
+	if (G_io_app.ble_ready) {
+		if (enable) {
+			G_io_app.enabling_advertising = 1;
+			G_io_app.disabling_advertising = 0;
+		}
+		else {
+			G_io_app.enabling_advertising = 0;
+			G_io_app.disabling_advertising = 1;
+		}
+		hci_le_set_advertise_enable(enable);
+	}
+}
+
+void LEDGER_BLE_reset_pairings(void)
+{
+	if (G_io_app.ble_ready) {
+		if (ledger_ble_data.connection.connection_handle != 0xFFFF) {
+			// Connected => force disconnection before clearing
+			ledger_ble_data.clear_pairing = 0xC1;
+			LEDGER_BLE_init();
+		}
+		else {
+			aci_gap_clear_security_db();
 		}
 	}
 }

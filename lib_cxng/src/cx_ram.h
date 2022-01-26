@@ -1,7 +1,7 @@
 
 /*******************************************************************************
 *   Ledger Nano S - Secure firmware
-*   (c) 2021 Ledger
+*   (c) 2022 Ledger
 *
 *  Licensed under the Apache License, Version 2.0 (the "License");
 *  you may not use this file except in compliance with the License.
@@ -80,7 +80,6 @@ union cx_u {
   cx_hmac_sha256_t hmac_sha256;
 #endif
 #endif
-
 
 #ifdef HAVE_RNG_RFC6979
   cx_rnd_rfc6979_ctx_t rfc6979;
