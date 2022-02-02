@@ -802,6 +802,7 @@ static void attribute_modified(uint8_t *buffer, uint16_t length)
 		LEDGER_PROTOCOL_rx(&buffer[4], length-4);
 
 		if (ledger_protocol_data.rx_apdu_status == APDU_STATUS_COMPLETE) {
+#ifdef HAVE_BOLOS
 			check_transfer_mode(G_io_app.transfer_mode);
 			if (ledger_ble_data.transfer_mode_enable) {
 				if (U2BE(ledger_ble_data.resp, 0) != SWO_SUCCESS) {
@@ -816,7 +817,9 @@ static void attribute_modified(uint8_t *buffer, uint16_t length)
 					notify_chunk();
 				}
 			}
-			else {
+			else
+#endif // HAVE_BOLOS
+			{
 				G_io_app.apdu_length = ledger_protocol_data.rx_apdu_length;
 				G_io_app.apdu_state  = APDU_BLE;
 			}

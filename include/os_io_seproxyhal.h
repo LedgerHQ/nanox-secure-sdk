@@ -239,8 +239,9 @@ typedef struct io_seph_s {
   unsigned char enabling_advertising;
   unsigned char disabling_advertising;
 #endif // HAVE_BLE
-
+#ifdef HAVE_BOLOS
   unsigned char transfer_mode;
+#endif // HAVE_BOLOS
 } io_seph_app_t;
 
 extern io_seph_app_t G_io_app;
