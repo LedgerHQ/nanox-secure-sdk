@@ -48,9 +48,7 @@ SECTIONS
     _text = .;
     _nvram_start = .;
 
-    /* ensure __stack_chk_init is always @ 0xC0D00000 */
-    KEEP(*(.boot.ssp_init))
-    /* ensure main directly follows __stack_chk_init */
+    /* ensure main is always @ 0xC0D00000 */
     *(.boot*)
     
     /* place the other code and rodata defined BUT nvram variables that are displaced in a r/w area */
@@ -94,21 +92,12 @@ SECTIONS
 
   } > DISCARD /*> SRAM AT>FLASH = 0x00 */
 
-  /* The .init_array is initialized with functions with the constructor
-   * attribute. Discard this section since there's no loader. */
-  /DISCARD/ : {
-    *(.init_array)
-  }
-
   .bss :
   {
     /**
      * Place RAM uninitialized variables
      */
     _bss = .;
-    __stack_chk_guard = .;
-    PROVIDE(__stack_chk_guard = .);
-    . += 4;
     *(.bss*)
     _ebss = .;
 
