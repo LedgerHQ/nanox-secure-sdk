@@ -125,7 +125,7 @@ void ux_layout_paging_reset(void);
 
 // deprecation
 #define ux_layout_bnnn_paging_params_t ux_layout_paging_params_t
-#define ux_layout_bnnn_paging_init ux_layout_paging_init
+#define ux_layout_bnnn_paging_init ux_layout_bn_paging_init
 #define ux_layout_bnnn_paging_reset ux_layout_paging_reset
 #define ux_layout_bn_paging_reset ux_layout_paging_reset
 
