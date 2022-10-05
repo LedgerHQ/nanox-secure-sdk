@@ -787,15 +787,15 @@ idx_ok:
                                  3,
                                  context_encoding);
           // draw the right part
-          pos = bagl_draw_string(component->font_id,
-                                 fgcolor, bgcolor,
-                                 (pos & 0xFFFF),
-                                 component->y + ((type==BAGL_LABELINE)?-(baseline):valignment),
-                                 component->width - halignment,
-                                 component->height - ((type==BAGL_LABELINE)?0:valignment),
-                                 ellipsis_2_start,
-                                 (context_length - ((unsigned int)ellipsis_2_start-(unsigned int)context) ),
-                                 context_encoding);
+          bagl_draw_string(component->font_id,
+                           fgcolor, bgcolor,
+                           (pos & 0xFFFF),
+                           component->y + ((type==BAGL_LABELINE)?-(baseline):valignment),
+                           component->width - halignment,
+                           component->height - ((type==BAGL_LABELINE)?0:valignment),
+                           ellipsis_2_start,
+                           (context_length - ((unsigned int)ellipsis_2_start-(unsigned int)context) ),
+                           context_encoding);
         }
 #endif // HAVE_BAGL_ELLIPSIS
       }
